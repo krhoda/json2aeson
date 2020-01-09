@@ -1,0 +1,22 @@
+.container {
+    text-align: center;
+}
+
+.left {
+    text-align: left;
+}
+
+.main {
+	display: grid;
+	grid-template-columns: 50% 50%;
+}
+
+.header {
+	grid-column: span 2;
+}
+
+.json-input {
+	resize: vertical;
+	width: 100%;
+	height: 80%
+}
