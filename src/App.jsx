@@ -3,6 +3,7 @@ import SnippetHolder from './containers/SnippetHolder.jsx';
 
 const initState = {
 	jsonInput: '',
+	instanceName: '',
 	errorMsg: ''
 };
 
@@ -30,8 +31,13 @@ const App = () => {
 		setStateField('errorMsg', nextError);
 	}
 
+	const updateInstanceName = (nextInstance) => {
+		setStateField('instanceName', nextInstance)
+	}
+
 	let snippetProps = {
 		target: state.jsonInput,
+		targetName: state.instanceName,
 		updateError: updateError
 	};
 
@@ -41,10 +47,24 @@ const App = () => {
 				<h1>THIS SET IS THE HEADER</h1>
 			</div>
 			<div>
-				<p>THIS SHOULD BE LEFT.</p>
+				<p>Name the instance:
+					<input
+						type="text"
+						onChange={(e) => {
+							if (!e || !e.target || !e.target.value) {
+								console.error("Failed to read event:");
+								console.error(e);
+								return
+							}
+
+							return updateInstanceName(e.target.value);
+						}}
+					/>
+				</p>
 				<textarea rows="30" className="json-input" onChange={(e) => {
 					if (!e || !e.target || !e.target.value) {
-						console.error("FAILED TO READ EVENT");
+						console.error("Failed to read event:");
+						console.error(e);
 						return
 					}
 
