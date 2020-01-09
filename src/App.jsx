@@ -45,6 +45,7 @@ const App = () => {
 		<div className="container main">
 			<div className="header">
 				<h1>THIS SET IS THE HEADER</h1>
+				<p>{state.errorMsg}</p>
 			</div>
 			<div>
 				<p>Name the instance:

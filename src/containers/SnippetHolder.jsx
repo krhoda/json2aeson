@@ -17,6 +17,9 @@ const SnippetHolder = (props) => {
 	try {
 		let parsedTarget = JSON.parse(target);
 		let targetObj = createRecordObject(parsedTarget, toPascalCase(name), updateError);
+		if (!targetObj) {
+			return '';
+		}
 		let snippet = renderRecordObj(targetObj);
 
 		return (
@@ -36,12 +39,12 @@ const createRecordObject = (target, recordName, updateError) => {
 	let targetKeys = Object.keys(target);
 	let badWord = checkForBadWords(targetKeys);
 	if (badWord) {
-		return updateError(`Haskell Reserved Word Detected: ${badWord}`);
+		updateError(`Haskell Reserved Word Detected: ${badWord}`);
+		return false;
 	}
 
 	let recordBody = [];
 	let nestedModels = [];
-	let depthHolder = 0;
 
 	targetKeys.forEach((key) => {
 		let value = target[key];
