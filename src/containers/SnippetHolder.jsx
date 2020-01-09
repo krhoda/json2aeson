@@ -1,6 +1,6 @@
 import React from 'react';
 import SyntaxHighlighter from 'react-syntax-highlighter';
-import {dark} from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { gruvboxDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
 const SnippetHolder = (props) => {
 	let {target, updateError} = props;
@@ -15,8 +15,7 @@ const SnippetHolder = (props) => {
 
 		return (
 			<div>
-				{target}
-				<SyntaxHighlighter language="haskell" style={dark}>
+				<SyntaxHighlighter className="snippet" language="haskell" style={gruvboxDark}>
 					{snippet}
 				</SyntaxHighlighter>
 			</div>
@@ -105,13 +104,13 @@ const handleArrayField = (value, key, updateError) => {
 			insideType = `\t${key} :: [Number]\n`;
 			break;
 		case 'object':
-			insideType = `\t${key} :: ${toPascalCase(key)}\n`;
-		    nestedModel = createRecordObject(testValue, key, updateError)
+			insideType = `\t${key} :: [${toPascalCase(key)}]\n`;
+		    nestedModel = createRecordsObject(testValue, key, updateError)
 			break;
 		}
 	}
 
-	return {body: insideType, nestedModels: nestedModel};
+	return {body: insideType, nested: nestedModel};
 };
 
 const toPascalCase = (str) => {
