@@ -37,32 +37,41 @@ const SnippetHolder = (props) => {
 
 const createRecordObject = (target, recordName, updateError) => {
 	let targetKeys = Object.keys(target);
-	let badWord = checkForBadWords(targetKeys);
-	if (badWord) {
-		updateError(`Haskell Reserved Word Detected: ${badWord}`);
-		return false;
-	}
+	let targetLen = targetKeys.length;
+
 
 	let recordBody = [];
 	let nestedModels = [];
+	let badWordList = [];
+	let hasBadWord = false;
 
-	targetKeys.forEach((key) => {
+	targetKeys.forEach((key, i) => {
 		let value = target[key];
+
+		let badWord = checkForBadWords(key);
+		if (badWord) {
+			key = `${recordName.toLowerCase()}_${key}`;
+			hasBadWord = true;
+			badWordList.push(key);
+		}
+
+		let valType = '';
+
 		switch (typeof value) {
 		case 'string':
-			recordBody.push(`\t${key} :: Text\n`);
+			valType = `\t${key} :: Text,\n`;
 			break;
 		case 'boolean':
-			recordBody.push(`\t${key} :: Bool\n`);
+			valType = `\t${key} :: Bool,\n`;
 			break;
 		case 'number':
-			recordBody.push(`\t${key} :: Number\n`);
+			valType = `\t${key} :: Number,\n`;
 			break;
 		case 'object':
 			if (Array.isArray(value)) {
 				let {body, nested} = handleArrayField(value, toPascalCase(key), updateError);
 
-				recordBody.push(body);
+				valType = (body);
 				if (nested) {
 					nestedModels.push(nested);
 				}
@@ -77,12 +86,17 @@ const createRecordObject = (target, recordName, updateError) => {
 				nestedModels: nextModelRecord.nestedModels
 			};
 
-			recordBody.push(`\t${key} :: ${toPascalCase(key)}\n`);
+			valType = `\t${key} :: ${toPascalCase(key)},\n`;
 			nestedModels.push(nextModel);
 			break;
 		default:
 			console.error('Unexpected type heard: ' + typeof value);
 		}
+
+		if (i == targetLen - 1) {
+			valType = valType.replace(/,/g, "");
+		}
+		recordBody.push(valType);
 	});
 
 	updateError('');
@@ -90,28 +104,30 @@ const createRecordObject = (target, recordName, updateError) => {
 	return {
 		name:         recordName,
 		recordBody:   recordBody,
-		nestedModels: nestedModels
+		nestedModels: nestedModels,
+		hadBadWord: hasBadWord,
+		badWordList: []
 	};
 };
 
 const handleArrayField = (value, key, updateError) => {
 	// TODO: something
-	let insideType = `\t${key} :: ()\n`;
+	let insideType = `\t${key} :: (),\n`;
 	let nestedModel = false;
 	if (value.length > 0) {
 		let testValue = value[0];
 		switch (typeof testValue) {
 		case 'string':
-			insideType = `\t${key} :: [Text]\n`;
+			insideType = `\t${key} :: [Text],\n`;
 			break;
 		case 'boolean':
-			insideType = `\t${key} :: [Bool]\n`;
+			insideType = `\t${key} :: [Bool],\n`;
 			break;
 		case 'number':
-			insideType = `\t${key} :: [Number]\n`;
+			insideType = `\t${key} :: [Number],\n`;
 			break;
 		case 'object':
-			insideType = `\t${key} :: [${toPascalCase(key)}]\n`;
+			insideType = `\t${key} :: [${toPascalCase(key)}],\n`;
 		    nestedModel = createRecordObject(testValue, key, updateError)
 			break;
 		}
@@ -132,18 +148,14 @@ const toPascalCase = (str) => {
 	return noUnder;
 };
 
-const checkForBadWords = (listOfWords) => {
-	if (listOfWords.length > 0) {
-		for (let i = 0, x = listOfWords.length; i < x; i++) {
-			for (let j = 0, y = badWords.length; j < y; j++)  {
-				if (listOfWords[i] === badWords[j]) {
-					return listOfWords[i];
-				}
-			}
+const checkForBadWords = (word) => {
+	for (let i = 0, x = badWords.length; i < x; i++)  {
+		if (word === badWords[i]) {
+			return word;
 		}
 	}
 
-	return '';
+	return false;
 };
 
 const badWords = [
@@ -188,7 +200,7 @@ import Data.Text (Text)
 
 import GHC.Generics (Generic)
 
-${makeDataHeader(name)}`;
+`;
 };
 
 const makeDataHeader = (name) => {
@@ -199,13 +211,28 @@ const makeDataFooter = (name) => {
 	return `} deriving (Show, Eq, Generic)\n\ninstance FromJSON ${name}\n`;
 };
 
+// TODO: MAKE WORK:
+
+/* const makeDataBadWordFooter = (name) => { */
+/* let x = `} deriving (Show, Eq, Generic)\n\ninstance FromJSON ${name} where\n`; */
+/* let y = key.split("_").join("_"); */
+/* let z = `$(deriveJSON defaultOptions {fieldLabelModifier = \x -> */
+/* if x == "${key}" */
+ //                               then "class"
+/* else x} ''Asset)` */
+//}
+
 const renderRecordObj = (recordObj) => {
-	let fileHeader = makeFileHeader(recordObj.name);
+	/* let fileHeader = makeFileHeader(recordObj.name); */
+	/* if (recordObj.hasBadWord)  { */
+		fileHeader += "import Data.Aeson.TH (deriveJSON, defaultOptions, Options(fieldLabelModifier))"
+	}
+
 	let others = recordObj.nestedModels.map((x) => {
 		return renderNestedObj(x);
 	});
 
-	return `${fileHeader}${recordObj.recordBody.join('')}${makeDataFooter(recordObj.name)}${others}`;
+	return `${fileHeader}${makeDataHeader(recordObj.name)}${recordObj.recordBody.join('')}${makeDataFooter(recordObj.name)}${others}`;
 };
 
 const renderNestedObj = (recordObj) => {
