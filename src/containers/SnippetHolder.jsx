@@ -145,16 +145,16 @@ const handleArrayField = (value, key, updateError, updateBadWord) => {
 		let testValue = value[0];
 		switch (typeof testValue) {
 		case 'string':
-			insideType = `\t${key} :: [Text],\n`;
+			insideType = `\t${key.toLowerCase()} :: [Text],\n`;
 			break;
 		case 'boolean':
-			insideType = `\t${key} :: [Bool],\n`;
+			insideType = `\t${key.toLowerCase()} :: [Bool],\n`;
 			break;
 		case 'number':
-			insideType = `\t${key} :: [Number],\n`;
+			insideType = `\t${key.toLowerCase()} :: [Number],\n`;
 			break;
 		case 'object':
-			insideType = `\t${key} :: [${toPascalCase(key)}],\n`;
+			insideType = `\t${key.toLowerCase()} :: [${toPascalCase(key)}],\n`;
 		    nestedModel = createRecordObject(testValue, key, updateError, updateBadWord)
 			break;
 		}
@@ -194,6 +194,7 @@ const badWords = [
 	'do',
 	'else',
 	'forall',
+	'id',
 	'if',
 	'import',
 	'in',
@@ -220,6 +221,7 @@ const badWords = [
 const makeFileHeader = (name, badWord) => {
 	let extensions = "{-# LANGUAGE DeriveGeneric #-}"
 	let extraAeson = "";
+
 	if (badWord) {
 		extensions += "\n{-# LANGUAGE TemplateHaskell #-}"
 		extraAeson = "\nimport Data.Aeson.TH (deriveJSON, defaultOptions, Options(fieldLabelModifier))\n"
@@ -245,41 +247,24 @@ const makeDataFooter = (recordObj) => {
 	let prefix = "} deriving (Show, Eq, Generic)\n\n"
 	if (recordObj.hasBadWord) {
 		console.log("HERE:");
-		let fmap = curryTemplateFooter(recordObj.name);
+		let cases = recordObj.badWordList.map(makeTemplateFooter).join("\n");
 
-		return [prefix].concat(recordObj.badWordList.map(fmap)).join("");
+		return `${prefix}$(deriveJSON defaultOptions {fieldLabelModifier = \\x ->\n\tcase x of\n${cases}\n\t_ -> x} ''${recordObj.name})\n\n`;
 	}
-	return `${prefix}instance FromJSON ${recordObj.name}\n`;
+
+	return `${prefix}instance FromJSON ${recordObj.name}\n\n`;
 };
 
-const curryTemplateFooter = (recordName) => {
-	return (badWordEntry) => {
-		return makeTemplateFooter(badWordEntry, recordName);
-	}
-}
-
-const makeTemplateFooter = (badWordEntry, recordName) => {
-	return `$(deriveJSON defaultOptions {fieldLabelModifier = \\x ->
-                                if x == "${badWordEntry.oldWord}"
-                                then "${badWordEntry.newWord}"
-                                else x} ''${recordName})\n`;
+const makeTemplateFooter = (badWordEntry) => {
+	return `\t"${badWordEntry.newWord}" -> "${badWordEntry.oldWord}"`;
 }
 
 const renderRecordObj = (recordObj) => {
-	console.log(recordObj);
 	let others = recordObj.nestedModels.map((x) => {
-		return renderNestedObj(x);
+		return renderRecordObj(x);
 	});
 
-	return `${makeDataHeader(recordObj.name)}${recordObj.recordBody.join('')}${makeDataFooter(recordObj)}${others}`;
-};
-
-const renderNestedObj = (recordObj) => {
-	let others = recordObj.nestedModels.map((x) => {
-		return renderNestedObj(x);
-	});
-
-	return `\n${makeDataHeader(recordObj.name)}${recordObj.recordBody.join('')}${makeDataFooter(recordObj)}${others}`;
+	return `${others}${makeDataHeader(recordObj.name)}${recordObj.recordBody.join('')}${makeDataFooter(recordObj)}`;
 };
 
 export default SnippetHolder;
