@@ -26,6 +26,7 @@ const App = () => {
 
 	const updateInput = (nextValue) => {
 		setStateField('jsonInput', nextValue);
+		setStateField('consumeJSON', nextValue);
 	}
 
 	const updateConsume = (nextValue) => {
@@ -69,7 +70,9 @@ const App = () => {
 						}}
 					/>
 				</p>
-				<p><button onClick={() => {updateConsume(state.jsonInput)}}>Go!</button></p>
+
+				{/* <p><button onClick={() => {updateConsume(state.jsonInput)}}>Go!</button></p> */}
+
 				<textarea rows="30" className="json-input" onChange={(e) => {
 					if (!e || !e.target || !e.target.value) {
 						console.error("Failed to read event:");

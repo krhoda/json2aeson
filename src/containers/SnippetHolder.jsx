@@ -1,9 +1,30 @@
-import React from 'react';
+import React, {useState} from 'react';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { gruvboxDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
+const initState = {badWord: false};
+
 const SnippetHolder = (props) => {
-	let {target, targetName, updateError} = props;
+	let {target, targetName, updateError, updateConsume} = props;
+
+	let [state, setState] = useState([ {...initState} ]);
+
+	const setStateField = (nextKey, nextValue) => {
+		let update = {};
+		update[nextKey] = nextValue;
+
+		let lastValue = state[nextKey];
+		if (lastValue === nextValue) {
+			return;
+		}
+
+		let nextState = Object.assign({}, state, update);
+		setState(nextState);
+	}
+
+	const updateBadWord = (nextValue) => {
+		setStateField('badWord', nextValue);
+	}
 
 	let name = targetName;
 	if (!name) {
@@ -16,26 +37,29 @@ const SnippetHolder = (props) => {
 
 	try {
 		let parsedTarget = JSON.parse(target);
-		let targetObj = createRecordObject(parsedTarget, toPascalCase(name), updateError);
+		let targetObj = createRecordObject(parsedTarget, toPascalCase(name), updateError, updateBadWord);
 		if (!targetObj) {
 			return '';
 		}
-		let snippet = renderRecordObj(targetObj);
 
+		let fileHeader = makeFileHeader(name, state.badWord);
+
+		let snippetBody = renderRecordObj(targetObj);
 		return (
 			<div>
 				<SyntaxHighlighter className="snippet" language="haskell" style={gruvboxDark}>
-					{snippet}
+					{fileHeader + snippetBody}
 				</SyntaxHighlighter>
 			</div>
 		);
 	} catch (err) {
+		updateConsume('');
 		updateError(`Cannot parse input ${err}`);
 		return <p>Error encountered!</p>;
 	}
 };
 
-const createRecordObject = (target, recordName, updateError) => {
+const createRecordObject = (target, recordName, updateError, updateBadWord) => {
 	let targetKeys = Object.keys(target);
 	let targetLen = targetKeys.length;
 
@@ -50,9 +74,17 @@ const createRecordObject = (target, recordName, updateError) => {
 
 		let badWord = checkForBadWords(key);
 		if (badWord) {
+			updateBadWord(true);
+			let oldKey = key;
 			key = `${recordName.toLowerCase()}_${key}`;
+
+			let nextBadWordEntry = {
+				oldWord: oldKey,
+				newWord: key
+			};
+
 			hasBadWord = true;
-			badWordList.push(key);
+			badWordList.push(nextBadWordEntry);
 		}
 
 		let valType = '';
@@ -69,7 +101,7 @@ const createRecordObject = (target, recordName, updateError) => {
 			break;
 		case 'object':
 			if (Array.isArray(value)) {
-				let {body, nested} = handleArrayField(value, toPascalCase(key), updateError);
+				let {body, nested} = handleArrayField(value, toPascalCase(key), updateError, updateBadWord);
 
 				valType = (body);
 				if (nested) {
@@ -78,16 +110,11 @@ const createRecordObject = (target, recordName, updateError) => {
 				break;
 			}
 
-			let nextModelRecord = createRecordObject(value, toPascalCase(key), updateError);
+			let nextModelRecord = createRecordObject(value, toPascalCase(key), updateError, updateBadWord);
 
-			let nextModel = {
-				name:         toPascalCase(key),
-				recordBody:   nextModelRecord.recordBody,
-				nestedModels: nextModelRecord.nestedModels
-			};
 
 			valType = `\t${key} :: ${toPascalCase(key)},\n`;
-			nestedModels.push(nextModel);
+			nestedModels.push(nextModelRecord);
 			break;
 		default:
 			console.error('Unexpected type heard: ' + typeof value);
@@ -105,12 +132,12 @@ const createRecordObject = (target, recordName, updateError) => {
 		name:         recordName,
 		recordBody:   recordBody,
 		nestedModels: nestedModels,
-		hadBadWord: hasBadWord,
-		badWordList: []
+		hasBadWord: hasBadWord,
+		badWordList: badWordList
 	};
 };
 
-const handleArrayField = (value, key, updateError) => {
+const handleArrayField = (value, key, updateError, updateBadWord) => {
 	// TODO: something
 	let insideType = `\t${key} :: (),\n`;
 	let nestedModel = false;
@@ -128,7 +155,7 @@ const handleArrayField = (value, key, updateError) => {
 			break;
 		case 'object':
 			insideType = `\t${key} :: [${toPascalCase(key)}],\n`;
-		    nestedModel = createRecordObject(testValue, key, updateError)
+		    nestedModel = createRecordObject(testValue, key, updateError, updateBadWord)
 			break;
 		}
 	}
@@ -190,12 +217,19 @@ const badWords = [
 	'unsafe'
 ];
 
-const makeFileHeader = (name) => {
-	return `{-# LANGUAGE DeriveGeneric #-}
+const makeFileHeader = (name, badWord) => {
+	let extensions = "{-# LANGUAGE DeriveGeneric #-}"
+	let extraAeson = "";
+	if (badWord) {
+		extensions += "\n{-# LANGUAGE TemplateHaskell #-}"
+		extraAeson = "\nimport Data.Aeson.TH (deriveJSON, defaultOptions, Options(fieldLabelModifier))\n"
+	}
+
+	return `${extensions}
 
 module ${name} where
 
-import Data.Aeson
+import Data.Aeson${extraAeson}
 import Data.Text (Text)
 
 import GHC.Generics (Generic)
@@ -207,32 +241,37 @@ const makeDataHeader = (name) => {
 	return `data ${name} = ${name} {\n`;
 };
 
-const makeDataFooter = (name) => {
-	return `} deriving (Show, Eq, Generic)\n\ninstance FromJSON ${name}\n`;
+const makeDataFooter = (recordObj) => {
+	let prefix = "} deriving (Show, Eq, Generic)\n\n"
+	if (recordObj.hasBadWord) {
+		console.log("HERE:");
+		let fmap = curryTemplateFooter(recordObj.name);
+
+		return [prefix].concat(recordObj.badWordList.map(fmap)).join("");
+	}
+	return `${prefix}instance FromJSON ${recordObj.name}\n`;
 };
 
-// TODO: MAKE WORK:
+const curryTemplateFooter = (recordName) => {
+	return (badWordEntry) => {
+		return makeTemplateFooter(badWordEntry, recordName);
+	}
+}
 
-/* const makeDataBadWordFooter = (name) => { */
-/* let x = `} deriving (Show, Eq, Generic)\n\ninstance FromJSON ${name} where\n`; */
-/* let y = key.split("_").join("_"); */
-/* let z = `$(deriveJSON defaultOptions {fieldLabelModifier = \x -> */
-/* if x == "${key}" */
- //                               then "class"
-/* else x} ''Asset)` */
-//}
+const makeTemplateFooter = (badWordEntry, recordName) => {
+	return `$(deriveJSON defaultOptions {fieldLabelModifier = \\x ->
+                                if x == "${badWordEntry.oldWord}"
+                                then "${badWordEntry.newWord}"
+                                else x} ''${recordName})\n`;
+}
 
 const renderRecordObj = (recordObj) => {
-	/* let fileHeader = makeFileHeader(recordObj.name); */
-	/* if (recordObj.hasBadWord)  { */
-		fileHeader += "import Data.Aeson.TH (deriveJSON, defaultOptions, Options(fieldLabelModifier))"
-	}
-
+	console.log(recordObj);
 	let others = recordObj.nestedModels.map((x) => {
 		return renderNestedObj(x);
 	});
 
-	return `${fileHeader}${makeDataHeader(recordObj.name)}${recordObj.recordBody.join('')}${makeDataFooter(recordObj.name)}${others}`;
+	return `${makeDataHeader(recordObj.name)}${recordObj.recordBody.join('')}${makeDataFooter(recordObj)}${others}`;
 };
 
 const renderNestedObj = (recordObj) => {
@@ -240,7 +279,7 @@ const renderNestedObj = (recordObj) => {
 		return renderNestedObj(x);
 	});
 
-	return `\n${makeDataHeader(recordObj.name)}${recordObj.recordBody.join('')}${makeDataFooter(recordObj.name)}${others}`;
+	return `\n${makeDataHeader(recordObj.name)}${recordObj.recordBody.join('')}${makeDataFooter(recordObj)}${others}`;
 };
 
 export default SnippetHolder;
