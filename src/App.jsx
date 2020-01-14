@@ -3,13 +3,94 @@ import SnippetHolder from './containers/SnippetHolder.jsx';
 
 const initState = {
 	jsonInput: '',
-	consumeJSON: '',
+	consume: '',
 	instanceName: '',
 	errorMsg: ''
 };
 
 const App = () => {
-	let [state, setState] = useState([ {...initState} ]);
+	let [state, setState] = useState({...initState});
+
+	const safeSetState = (nextState) => {
+		setState((prevState) => {
+			let merged = Object.assign({}, prevState, nextState);
+			let same = comparePrevWithMerged(prevState, merged);
+			console.log(nextState);
+			console.log(prevState);
+			console.log(merged);
+			console.log(same);
+
+			if (!same) {
+				return merged;
+			}
+
+			return prevState;
+		});
+	}
+
+	const comparePrevWithMerged = (prevState, merged) => {
+		let mergedKeys = Object.keys(merged);
+
+		for (
+			let mergedIndex = 0,
+				x = mergedKeys.length;
+			mergedIndex < x;
+			mergedIndex++
+		) {
+			let sharedKey = mergedKeys[mergedIndex];
+
+			let prevVal = prevState[sharedKey];
+			let mergedVal = mergedKeys[sharedKey];
+
+			if (!compareAnything(prevVal, mergedVal)) {
+				return false;
+			}
+		}
+	}
+
+	const compareAnything = (a, b) => {
+		let aT = typeof a;
+		let bT = typeof b;
+
+		if (aT !== bT) {
+			return false;
+		}
+
+		switch (aT) {
+			case "function":
+				console.warn("Attempting to assert the equality of two functions...");
+				console.warn("...I ain't no GHC, but I'll sure try");
+				return a.toString() === b.toString();
+
+			case "object":
+				if (null === a === b) {
+					return true;
+				}
+
+				if (Array.isArray(a)) {
+					if (!Array.isArray(b)) {
+						return false;
+					}
+
+					if (a.length !== b.length) {
+						return false;
+					}
+
+					for (let i = 0, x = a.length; i < x; i++) {
+						let a1 = a[i];
+						let b1 = b[i];
+						if (!compareAnything(a1, b1)) {
+							return false;
+						}
+					}
+				}
+
+				return comparePrevWithMerge(a, b);
+
+			default:
+				return a === b;
+		}
+	}
 
 	const setStateField = (nextKey, nextValue) => {
 		let update = {};
@@ -25,24 +106,38 @@ const App = () => {
 	}
 
 	const updateInput = (nextValue) => {
-		setStateField('jsonInput', nextValue);
-		setStateField('consumeJSON', nextValue);
-	}
+		let nextState = {
+			'jsonInput': nextValue,
+			'consume': nextValue
+		};
+
+		safeSetState(nextState);
+
+		/* setStateField('jsonInput', nextValue); */
+		/* setStateField('consume', nextValue); */
+	};
 
 	const updateConsume = (nextValue) => {
-		setStateField('consumeJSON', nextValue);
-	}
+		safeSetState({'consume': nextValue});
+
+		/* setStateField('consume', nextValue); */
+	};
 
 	const updateError = (nextError) => {
-		setStateField('errorMsg', nextError);
-	}
+		safeSetState({'errorMsg': nextError});
+
+		/* setStateField('errorMsg', nextError); */
+	};
 
 	const updateInstanceName = (nextInstance) => {
-		setStateField('instanceName', nextInstance)
-	}
+		safeSetState({'instanceName': nextInstance})
 
+		/* setStateField('instanceName', nextInstance) */
+	};
+
+	console.log(state);
 	let snippetProps = {
-		target: state.consumeJSON,
+		target: state.consume,
 		updateConsume: updateConsume,
 		targetName: state.instanceName,
 		updateError: updateError
