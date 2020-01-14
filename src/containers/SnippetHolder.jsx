@@ -2,29 +2,9 @@ import React, {useState} from 'react';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { gruvboxDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
-const initState = {badWord: false};
-
 const SnippetHolder = (props) => {
 	let {target, targetName, updateError, updateConsume} = props;
-
-	let [state, setState] = useState([ {...initState} ]);
-
-	const setStateField = (nextKey, nextValue) => {
-		let update = {};
-		update[nextKey] = nextValue;
-
-		let lastValue = state[nextKey];
-		if (lastValue === nextValue) {
-			return;
-		}
-
-		let nextState = Object.assign({}, state, update);
-		setState(nextState);
-	}
-
-	const updateBadWord = (nextValue) => {
-		setStateField('badWord', nextValue);
-	}
+	let [badWord, setBadWord] = useState(false);
 
 	let name = targetName;
 	if (!name) {
@@ -37,12 +17,12 @@ const SnippetHolder = (props) => {
 
 	try {
 		let parsedTarget = JSON.parse(target);
-		let targetObj = createRecordObject(parsedTarget, toPascalCase(name), updateError, updateBadWord);
+		let targetObj = createRecordObject(parsedTarget, toPascalCase(name), updateError, setBadWord);
 		if (!targetObj) {
 			return '';
 		}
 
-		let fileHeader = makeFileHeader(name, state.badWord);
+		let fileHeader = makeFileHeader(name, badWord);
 
 		let snippetBody = renderRecordObj(targetObj);
 		return (
@@ -59,10 +39,9 @@ const SnippetHolder = (props) => {
 	}
 };
 
-const createRecordObject = (target, recordName, updateError, updateBadWord) => {
+const createRecordObject = (target, recordName, updateError, setBadWord) => {
 	let targetKeys = Object.keys(target);
 	let targetLen = targetKeys.length;
-
 
 	let recordBody = [];
 	let nestedModels = [];
@@ -74,7 +53,7 @@ const createRecordObject = (target, recordName, updateError, updateBadWord) => {
 
 		let badWord = checkForBadWords(key);
 		if (badWord) {
-			updateBadWord(true);
+			setBadWord(true);
 			let oldKey = key;
 			key = `${recordName.toLowerCase()}_${key}`;
 
@@ -101,7 +80,7 @@ const createRecordObject = (target, recordName, updateError, updateBadWord) => {
 			break;
 		case 'object':
 			if (Array.isArray(value)) {
-				let {body, nested} = handleArrayField(value, toPascalCase(key), updateError, updateBadWord);
+				let {body, nested} = handleArrayField(value, toPascalCase(key), updateError, setBadWord);
 
 				valType = (body);
 				if (nested) {
@@ -110,7 +89,7 @@ const createRecordObject = (target, recordName, updateError, updateBadWord) => {
 				break;
 			}
 
-			let nextModelRecord = createRecordObject(value, toPascalCase(key), updateError, updateBadWord);
+			let nextModelRecord = createRecordObject(value, toPascalCase(key), updateError, setBadWord);
 
 
 			valType = `\t${key} :: ${toPascalCase(key)},\n`;
@@ -137,7 +116,7 @@ const createRecordObject = (target, recordName, updateError, updateBadWord) => {
 	};
 };
 
-const handleArrayField = (value, key, updateError, updateBadWord) => {
+const handleArrayField = (value, key, updateError, setBadWord) => {
 	// TODO: something
 	let insideType = `\t${key} :: (),\n`;
 	let nestedModel = false;
@@ -155,7 +134,7 @@ const handleArrayField = (value, key, updateError, updateBadWord) => {
 			break;
 		case 'object':
 			insideType = `\t${key.toLowerCase()} :: [${toPascalCase(key)}],\n`;
-		    nestedModel = createRecordObject(testValue, key, updateError, updateBadWord)
+		    nestedModel = createRecordObject(testValue, key, updateError, setBadWord)
 			break;
 		}
 	}
