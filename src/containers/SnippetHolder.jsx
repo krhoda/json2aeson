@@ -2,9 +2,18 @@ import React, {useState} from 'react';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { gruvboxDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
+const initState = { badWord: false};
+
 const SnippetHolder = (props) => {
-	let {target, targetName, updateError, updateConsume} = props;
+	/* let {target, targetName, updateError, updateConsume} = props; */
 	let [badWord, setBadWord] = useState(false);
+
+	let [state, setState] = useState(initState);
+
+	let safeSetBadWord = (value) => {
+		let nextState = {badWord: value};
+		safeSetState(nextState);
+	}
 
 	let name = targetName;
 	if (!name) {
@@ -15,9 +24,19 @@ const SnippetHolder = (props) => {
 		return '';
 	}
 
+	/* TODO: Is there any better way? */
+	let safeSetBadWord = (value) => {
+		if (value !== badWord) {
+			setBadWord(value);
+		}
+	}
+
 	try {
 		let parsedTarget = JSON.parse(target);
-		let targetObj = createRecordObject(parsedTarget, toPascalCase(name), updateError, setBadWord);
+
+		/* let targetObj = createRecordObject(parsedTarget, toPascalCase(name), updateError, setBadWord); */
+		let targetObj = createRecordObject(parsedTarget, toPascalCase(name), updateError, safeSetBadWord);
+
 		if (!targetObj) {
 			return '';
 		}
@@ -51,8 +70,8 @@ const createRecordObject = (target, recordName, updateError, setBadWord) => {
 	targetKeys.forEach((key, i) => {
 		let value = target[key];
 
-		let badWord = checkForBadWords(key);
-		if (badWord) {
+		let badWordCheck = checkForBadWords(key);
+		if (badWordCheck) {
 			setBadWord(true);
 			let oldKey = key;
 			key = `${recordName.toLowerCase()}_${key}`;
