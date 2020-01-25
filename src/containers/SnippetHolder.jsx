@@ -64,39 +64,44 @@ const createRecordObject = (target, recordName) => {
 			badWordList.push(nextBadWordEntry);
 		}
 
-		let valType = '';
+		let valType = `  ,${key} :: ()\n`;
 
 		switch (typeof value) {
 		case 'string':
-			valType = `\t${key} :: Text,\n`;
+			valType = `  ,${key} :: Text\n`;
 			break;
 		case 'boolean':
-			valType = `\t${key} :: Bool,\n`;
+			valType = `  ,${key} :: Bool\n`;
 			break;
 		case 'number':
-			valType = `\t${key} :: Number,\n`;
+			valType = `  ,${key} :: Double\n`;
 			break;
 		case 'object':
+			if (valType === null) {
+				break;
+			}
 			if (Array.isArray(value)) {
 				let {body, nested} = handleArrayField(value, toPascalCase(key));
 
 				valType = (body);
-				if (nested) {
-					nestedModels.push(nested);
+				if (nested.length > 0) {
+					nested.forEach((nestedModel) => {
+						nestedModels.push(nestedModel);
+					});
 				}
 				break;
 			}
 
 			let nextModelRecord = createRecordObject(value, toPascalCase(key));
 
-			valType = `\t${key} :: ${toPascalCase(key)},\n`;
+			valType = `  ,${key} :: ${toPascalCase(key)}\n`;
 			nestedModels.push(nextModelRecord);
 			break;
 		default:
 			console.error('Unexpected type heard: ' + typeof value);
 		}
 
-		if (i == targetLen - 1) {
+		if (i === 0) {
 			valType = valType.replace(/,/g, '');
 		}
 		recordBody.push(valType);
@@ -112,29 +117,48 @@ const createRecordObject = (target, recordName) => {
 };
 
 const handleArrayField = (value, key) => {
-	// TODO: something
-	let insideType = `\t${key} :: (),\n`;
-	let nestedModel = false;
+	// TODO: Make sure lists of lists work
+	let insideType = `  ,${key} :: ()\n`;
+	let nestedModels = [];
 	if (value.length > 0) {
+		// TODO: Improve to test every elm of array.
 		let testValue = value[0];
 		switch (typeof testValue) {
 		case 'string':
-			insideType = `\t${key.toLowerCase()} :: [Text],\n`;
+			insideType = `  ,${key.toLowerCase()} :: [Text]\n`;
 			break;
 		case 'boolean':
-			insideType = `\t${key.toLowerCase()} :: [Bool],\n`;
+			insideType = `  ,${key.toLowerCase()} :: [Bool]\n`;
 			break;
 		case 'number':
-			insideType = `\t${key.toLowerCase()} :: [Number],\n`;
+			insideType = `  ,${key.toLowerCase()} :: [Double]\n`;
 			break;
 		case 'object':
-			insideType = `\t${key.toLowerCase()} :: [${toPascalCase(key)}],\n`;
-		    nestedModel = createRecordObject(testValue, key);
+			if (testValue === null) {
+				break;
+			}
+
+			if (Array.isArray(testValue)) {
+				let {body, nested} = handleArrayField(testValue, toPascalCase(key));
+
+				insideType = (body);
+				if (nested.length > 0) {
+					nested.forEach((nestedModel) => {
+						nestedModels.push(nestedModel);
+					});
+				}
+				break;
+			}
+
+			let nextModelRecord = createRecordObject(testValue, toPascalCase(key));
+
+			insideType = `  ,${key.toLowerCase()} :: [${toPascalCase(key)}]\n`;
+			nextModels.push(nextModelRecord);
 			break;
 		}
 	}
 
-	return {body: insideType, nested: nestedModel};
+	return {body: insideType, nested: nestedModels};
 };
 
 const upperFirst = (s) => {
@@ -181,14 +205,14 @@ const makeDataFooter = (recordObj) => {
 	if (recordObj.hasBadWord) {
 		 console.log('HERE:');
 		 let cases = recordObj.badWordList.map(makeTemplateFooter).join('\n');
-		 return `${prefix}$(deriveJSON defaultOptions {fieldLabelModifier = \\x ->\n\tcase x of\n${cases}\n\t_ -> x} ''${recordObj.name})\n\n`;
+		 return `${prefix}$(deriveJSON defaultOptions {fieldLabelModifier = \\x ->\n  case x of\n${cases}\n  _ -> x} ''${recordObj.name})\n\n`;
 	}
 
 	return `${prefix}instance FromJSON ${recordObj.name}\n\n`;
 };
 
 const makeTemplateFooter = (badWordEntry) => {
-	return `\t"${badWordEntry.newWord}" -> "${badWordEntry.oldWord}"`;
+	return `  "${badWordEntry.newWord}" -> "${badWordEntry.oldWord}"`;
 };
 
 const renderRecordObj = (recordObj) => {
